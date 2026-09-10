@@ -28,14 +28,15 @@ The application ingests a local PDF, splits the text into semantic chunks, gener
    git clone [https://github.com/WaryamMangi/Chatbot-with-RAG.git](https://github.com/WaryamMangi/Chatbot-with-RAG.git)
    cd Chatbot-with-RAG
 2. Create and activate a virtual environment:
+   ```bash
    python3 -m venv venv
    source venv/bin/activate
-3. Install required packages:
+4. Install required packages:
    pip install streamlit langchain-groq langchain-community langchain-text-splitters pypdf sentence-transformers python-dotenv
-4. Configure environment variables:
+5. Configure environment variables:
    Create a .env file in the project root:
    GROQ_API_KEY="your_groq_api_key_here"
-5. Add document:
+6. Add document:
    Place the target document in the root directory and name it reflexion.pdf.
 
 ### Execution
