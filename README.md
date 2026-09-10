@@ -31,10 +31,12 @@ The application ingests a local PDF, splits the text into semantic chunks, gener
    ```bash
    python3 -m venv venv
    source venv/bin/activate
-4. Install required packages:
+3. Install required packages:
+   ```bash
    pip install streamlit langchain-groq langchain-community langchain-text-splitters pypdf sentence-transformers python-dotenv
 5. Configure environment variables:
    Create a .env file in the project root:
+   ```bash
    GROQ_API_KEY="your_groq_api_key_here"
 6. Add document:
    Place the target document in the root directory and name it reflexion.pdf.
