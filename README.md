@@ -43,4 +43,5 @@ The application ingests a local PDF, splits the text into semantic chunks, gener
 
 ### Execution
 Run the application:
+```bash
 streamlit run phase_3.py
