@@ -1,27 +1,24 @@
-# Phase 1 libraries
 import os
 import warnings
 import logging
-
 import streamlit as st
 
-# Phase 2 libraries
-from langchain_groq import ChatGroq
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+# Load the environment variables
+from dotenv import load_dotenv
+load_dotenv()
 
-# Phase 3 libraries
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import PyPDFLoader
-from langchain.indexes import VectorstoreIndexCreator
-from langchain.chains import RetrievalQA
+from langchain_groq import ChatGroq
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.vectorstores import InMemoryVectorStore
 
 # Disable warnings and info logs
 warnings.filterwarnings("ignore")
 logging.getLogger("transformers").setLevel(logging.ERROR)
 
 st.title('Ask Chatbot!')
+
 # Setup a session state variable to hold all the old messages
 if 'messages' not in st.session_state:
     st.session_state.messages = []
@@ -30,57 +27,55 @@ if 'messages' not in st.session_state:
 for message in st.session_state.messages:
     st.chat_message(message['role']).markdown(message['content'])
 
-# Phase 3 (Pre-requisite)
 @st.cache_resource
 def get_vectorstore():
     pdf_name = "./reflexion.pdf"
-    loaders = [PyPDFLoader(pdf_name)]
-    # Create chunks, aka vector database–Chromadb
-    index = VectorstoreIndexCreator(
-        embedding=HuggingFaceEmbeddings(model_name='all-MiniLM-L12-v2'),
-        text_splitter=RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    ).from_loaders(loaders)
-    return index.vectorstore
+    
+    # 1. Load the PDF
+    loader = PyPDFLoader(pdf_name)
+    docs = loader.load()
+    
+    # 2. Split the text into chunks
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    splits = text_splitter.split_documents(docs)
+    
+    # 3. Embed and store the chunks in memory
+    embeddings = HuggingFaceEmbeddings(model_name='all-MiniLM-L12-v2')
+    vectorstore = InMemoryVectorStore.from_documents(documents=splits, embedding=embeddings)
+    return vectorstore
 
 prompt = st.chat_input('Pass your prompt here')
 
 if prompt:
     st.chat_message('user').markdown(prompt)
-    # Store the user prompt in state
     st.session_state.messages.append({'role':'user', 'content': prompt})
     
-    # Phase 2 
-    groq_sys_prompt = ChatPromptTemplate.from_template("""You are very smart at everything, you always give the best, 
-                                            the most accurate and most precise answers. Answer the following Question: {user_prompt}.
-                                            Start the answer directly. No small talk please""")
-
-    #model = "mixtral-8x7b-32768"
-    model="llama3-8b-8192"
+    # Using the guaranteed active model from your Phase 2 file
+    model="openai/gpt-oss-20b"
 
     groq_chat = ChatGroq(
             groq_api_key=os.environ.get("GROQ_API_KEY"), 
             model_name=model
     )
 
-    # Phase 3
     try:
         vectorstore = get_vectorstore()
         if vectorstore is None:
             st.error("Failed to load document")
+            st.stop()
       
-        chain = RetrievalQA.from_chain_type(
-            llm=groq_chat,
-            chain_type='stuff',
-            retriever=vectorstore.as_retriever(search_kwargs={'k': 3}),
-            return_source_documents=True)
-       
-        result = chain({"query": prompt})
-        response = result["result"]  # Extract just the answer
-        #response = get_response_from_groq(prompt)
+        # --- PURE RAG LOGIC ---
+        retriever = vectorstore.as_retriever(search_kwargs={'k': 3})
+        relevant_docs = retriever.invoke(prompt)
+        context = "\n\n".join([doc.page_content for doc in relevant_docs])
+        
+        augmented_prompt = f"Answer the user's question based strictly on the following context:\n\nContext:\n{context}\n\nQuestion: {prompt}"
+        
+        ai_message = groq_chat.invoke(augmented_prompt)
+        response = ai_message.content
+        
         st.chat_message('assistant').markdown(response)
         st.session_state.messages.append(
             {'role':'assistant', 'content':response})
     except Exception as e:
         st.error(f"Error: {str(e)}")
-
-
